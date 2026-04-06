@@ -1,0 +1,279 @@
+You are a senior frontend architect and full-stack engineer.
+
+Build a production-grade interactive ER Diagram Canvas application that visualizes database schema from a JSON configuration file. The system must support dynamic filtering, table selection, and relationship visualization.
+
+---
+
+# 🎯 GOAL
+
+Create a web-based ER Diagram tool where:
+
+* Users can visualize database schema (tables + relationships)
+* Select specific tables/modules
+* Filter relationships dynamically
+* Render diagrams in an interactive canvas
+
+---
+
+# 🧱 INPUT DATA
+
+The application will consume a JSON schema with:
+
+* tables
+* columns
+* relationships
+* indexes
+* modules
+
+The JSON structure is already defined and stored in the codebase.
+
+---
+
+# 🖥️ FRONTEND REQUIREMENTS
+
+Use:
+
+* React (preferred)
+* TypeScript
+* Tailwind CSS
+* Zustand or Redux (state management)
+* React Flow (for diagram rendering)
+
+---
+
+# 🎨 CORE FEATURES
+
+## 1. ER DIAGRAM CANVAS
+
+* Use React Flow to render:
+
+  * Nodes = Tables
+  * Edges = Relationships
+
+### Node Design:
+
+* Table name (header)
+* Column list:
+
+  * Highlight PK (Primary Key)
+  * Highlight FK (Foreign Key)
+* Scrollable if too many columns
+
+---
+
+## 2. TABLE SELECTION PANEL
+
+Left sidebar:
+
+* List all tables
+* Checkbox selection
+* Group by modules (sales, inventory, etc.)
+
+### Actions:
+
+* Select all
+* Deselect all
+* Search table
+
+---
+
+## 3. RELATIONSHIP FILTERING
+
+Add filters:
+
+* Show only:
+
+  * Direct relationships
+  * One-to-many
+  * Many-to-one
+* Toggle:
+
+  * Show orphan tables (no relation)
+  * Show only connected graph
+
+---
+
+## 4. DYNAMIC GRAPH RENDERING
+
+* When user selects tables:
+
+  * Only render selected tables
+  * Auto-filter relationships
+* Hide unrelated nodes
+
+---
+
+## 5. AUTO LAYOUT ENGINE
+
+Use:
+
+* dagre or elkjs
+
+Features:
+
+* Auto arrange nodes
+* Avoid overlapping edges
+* Support:
+
+  * hierarchical layout
+  * force layout (optional)
+
+---
+
+## 6. INTERACTION FEATURES
+
+### Zoom & Pan
+
+* Mouse zoom
+* Drag canvas
+
+### Node Interaction
+
+* Click node → show details panel
+* Hover → highlight connected edges
+
+---
+
+## 7. DETAILS PANEL (RIGHT SIDEBAR)
+
+On table click:
+
+Show:
+
+* Table name
+* Columns (type, PK, FK)
+* Indexes
+* Relationships
+
+---
+
+## 8. SEARCH FUNCTIONALITY
+
+Global search:
+
+* Table name
+* Column name
+
+Highlight matched nodes
+
+---
+
+## 9. RELATIONSHIP VISUAL STYLE
+
+* One-to-many → arrow
+* Many-to-one → reverse arrow
+* Color-coded edges:
+
+  * FK → blue
+  * Critical relations → red
+
+---
+
+## 10. PERFORMANCE (VERY IMPORTANT)
+
+* Support 100+ tables
+* Lazy rendering
+* Virtualization for large graphs
+
+---
+
+# ⚙️ BACKEND (OPTIONAL)
+
+* Serve schema JSON via API
+* Cache schema
+* Versioning support
+
+---
+
+# 📦 FILE STRUCTURE
+
+/src
+/components
+ERCanvas.tsx
+TableNode.tsx
+Sidebar.tsx
+Filters.tsx
+DetailsPanel.tsx
+/hooks
+useSchema.ts
+/utils
+graphBuilder.ts
+layoutEngine.ts
+
+---
+
+# 🧠 GRAPH BUILDING LOGIC
+
+* Convert JSON → nodes + edges
+
+Node:
+{
+id: table_name,
+data: { columns, metadata }
+}
+
+Edge:
+{
+source: from_table,
+target: to_table,
+label: relationship_type
+}
+
+---
+
+# 🔥 ADVANCED FEATURES (MUST INCLUDE)
+
+## 1. MODULE FILTERING
+
+* Filter tables by module
+
+## 2. RELATIONSHIP DEPTH
+
+* Show:
+
+  * Level 1 (direct)
+  * Level 2 (extended relations)
+
+## 3. EXPORT OPTIONS
+
+* Export as:
+
+  * PNG
+  * SVG
+
+## 4. SAVE VIEW STATE
+
+* Save selected tables + layout
+
+---
+
+# 🎯 UX REQUIREMENTS
+
+* Clean and minimal UI
+* Smooth transitions
+* Fast rendering (< 1s)
+
+---
+
+# 🚀 SUCCESS CRITERIA
+
+* Can render ER diagram from JSON
+* Supports dynamic filtering
+* Handles large schema
+* Easy for non-technical users
+
+---
+
+# 📦 OUTPUT
+
+Deliver:
+
+* Full React application
+* Reusable components
+* Graph rendering logic
+* Sample JSON integration
+* Deployment-ready build
+
+---
+
+Ensure code is scalable, modular, and production-ready.
