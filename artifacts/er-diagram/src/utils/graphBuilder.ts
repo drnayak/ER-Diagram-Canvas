@@ -1,6 +1,6 @@
 import { Node, Edge } from "reactflow";
 import dagre from "@dagrejs/dagre";
-import { Table, Relationship } from "../data/schema";
+import { Table, Relationship } from "../types";
 
 const NODE_WIDTH = 280;
 const NODE_HEIGHT_BASE = 80;
@@ -12,16 +12,12 @@ export function buildNodesAndEdges(
   highlightedTable: string | null
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = tables.map((table) => {
-    const isHighlighted = highlightedTable
-      ? highlightedTable === table.table_name
-      : false;
+    const isHighlighted = highlightedTable === table.table_name;
     const isConnected = highlightedTable
       ? relationships.some(
           (r) =>
-            r.from.split(".")[0] === highlightedTable &&
-            r.to.split(".")[0] === table.table_name ||
-            r.to.split(".")[0] === highlightedTable &&
-            r.from.split(".")[0] === table.table_name
+            (r.from.split(".")[0] === highlightedTable && r.to.split(".")[0] === table.table_name) ||
+            (r.to.split(".")[0] === highlightedTable && r.from.split(".")[0] === table.table_name)
         )
       : false;
 
@@ -61,45 +57,25 @@ export function buildNodesAndEdges(
         labelStyle: { fontSize: 10, fill: "#64748b" },
         labelBgStyle: { fill: "#f8fafc", fillOpacity: 0.85 },
         style: {
-          stroke: isEdgeHighlighted
-            ? "#3b82f6"
-            : highlightedTable
-            ? "#cbd5e1"
-            : "#3b82f6",
+          stroke: isEdgeHighlighted ? "#3b82f6" : highlightedTable ? "#cbd5e1" : "#3b82f6",
           strokeWidth: isEdgeHighlighted ? 2 : 1.5,
           opacity: highlightedTable && !isEdgeHighlighted ? 0.2 : 1,
         },
         markerEnd: {
           type: "arrowclosed",
-          color: isEdgeHighlighted
-            ? "#3b82f6"
-            : highlightedTable
-            ? "#cbd5e1"
-            : "#3b82f6",
+          color: isEdgeHighlighted ? "#3b82f6" : highlightedTable ? "#cbd5e1" : "#3b82f6",
         },
       };
     });
 
   const layouted = applyDagreLayout(nodes, edges, tables);
-
   return { nodes: layouted, edges };
 }
 
-function applyDagreLayout(
-  nodes: Node[],
-  edges: Edge[],
-  tables: Table[]
-): Node[] {
+function applyDagreLayout(nodes: Node[], edges: Edge[], tables: Table[]): Node[] {
   const g = new dagre.graphlib.Graph();
   g.setDefaultEdgeLabel(() => ({}));
-  g.setGraph({
-    rankdir: "LR",
-    ranksep: 120,
-    nodesep: 60,
-    edgesep: 30,
-    marginx: 40,
-    marginy: 40,
-  });
+  g.setGraph({ rankdir: "LR", ranksep: 120, nodesep: 60, edgesep: 30, marginx: 40, marginy: 40 });
 
   nodes.forEach((node) => {
     const table = tables.find((t) => t.table_name === node.id);
@@ -109,9 +85,7 @@ function applyDagreLayout(
     g.setNode(node.id, { width: NODE_WIDTH, height });
   });
 
-  edges.forEach((edge) => {
-    g.setEdge(edge.source, edge.target);
-  });
+  edges.forEach((edge) => g.setEdge(edge.source, edge.target));
 
   dagre.layout(g);
 

@@ -14,18 +14,14 @@ const DEPTH_OPTIONS: { value: 1 | 2; label: string }[] = [
 
 export default function Filters() {
   const {
-    relationshipFilter,
-    setRelationshipFilter,
-    showOrphans,
-    setShowOrphans,
-    showOnlyConnected,
-    setShowOnlyConnected,
-    depthFilter,
-    setDepthFilter,
+    relationshipFilter, setRelationshipFilter,
+    showOrphans, setShowOrphans,
+    showOnlyConnected, setShowOnlyConnected,
+    depthFilter, setDepthFilter,
   } = useStore();
 
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-gray-900 border-b border-gray-800">
+    <div className="flex items-center gap-3 px-4 py-2 bg-gray-900 border-b border-gray-800 flex-wrap">
       <div className="flex items-center gap-1.5 text-gray-400">
         <Filter className="w-3.5 h-3.5" />
         <span className="text-xs font-semibold uppercase tracking-widest">Filters</span>

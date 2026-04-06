@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef } from "react";
+import { useCallback, useRef, useState, useEffect } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -19,51 +19,38 @@ const nodeTypes = { tableNode: TableNode };
 
 function ERCanvasInner() {
   const { getFilteredTables, getActiveRelationships, highlightedTableName } = useStore();
-
   const filteredTables = getFilteredTables();
   const activeRelationships = getActiveRelationships();
 
-  const { nodes: initialNodes, edges: initialEdges } = useMemo(
-    () => buildNodesAndEdges(filteredTables, activeRelationships, highlightedTableName),
-    [filteredTables, activeRelationships, highlightedTableName]
-  );
+  const [nodes, setNodes, onNodesChange] = useNodesState([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const flowRef = useRef<HTMLDivElement>(null);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-
-  const prevTablesRef = useRef<string>("");
-  const prevRelRef = useRef<string>("");
-  const prevHighlightRef = useRef<string | null>(null);
+  const rebuildGraph = useCallback(() => {
+    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRelationships, highlightedTableName);
+    setNodes(n);
+    setEdges(e);
+  }, [filteredTables, activeRelationships, highlightedTableName, setNodes, setEdges]);
 
   const tableKey = filteredTables.map((t) => t.table_name).join(",");
   const relKey = activeRelationships.map((r) => `${r.from}-${r.to}`).join(",");
 
-  if (
-    tableKey !== prevTablesRef.current ||
-    relKey !== prevRelRef.current
-  ) {
-    prevTablesRef.current = tableKey;
-    prevRelRef.current = relKey;
-    prevHighlightRef.current = highlightedTableName;
-    const { nodes: newNodes, edges: newEdges } = buildNodesAndEdges(
-      filteredTables,
-      activeRelationships,
-      highlightedTableName
-    );
-    setNodes(newNodes);
-    setEdges(newEdges);
-  } else if (prevHighlightRef.current !== highlightedTableName) {
-    prevHighlightRef.current = highlightedTableName;
-    const { nodes: newNodes, edges: newEdges } = buildNodesAndEdges(
-      filteredTables,
-      activeRelationships,
-      highlightedTableName
-    );
-    setNodes(newNodes);
-    setEdges(newEdges);
-  }
+  const prevKey = useRef("");
+  const prevHighlight = useRef<string | null>(null);
+  const currentKey = `${tableKey}|${relKey}`;
 
-  const flowRef = useRef<HTMLDivElement>(null);
+  if (prevKey.current !== currentKey) {
+    prevKey.current = currentKey;
+    prevHighlight.current = highlightedTableName;
+    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRelationships, highlightedTableName);
+    setNodes(n);
+    setEdges(e);
+  } else if (prevHighlight.current !== highlightedTableName) {
+    prevHighlight.current = highlightedTableName;
+    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRelationships, highlightedTableName);
+    setNodes(n);
+    setEdges(e);
+  }
 
   const exportPng = useCallback(() => {
     if (!flowRef.current) return;
@@ -89,16 +76,6 @@ function ERCanvasInner() {
     });
   }, []);
 
-  const resetLayout = useCallback(() => {
-    const { nodes: newNodes, edges: newEdges } = buildNodesAndEdges(
-      filteredTables,
-      activeRelationships,
-      highlightedTableName
-    );
-    setNodes(newNodes);
-    setEdges(newEdges);
-  }, [filteredTables, activeRelationships, highlightedTableName, setNodes, setEdges]);
-
   if (filteredTables.length === 0) {
     return (
       <div className="flex-1 flex items-center justify-center bg-gray-50">
@@ -121,7 +98,7 @@ function ERCanvasInner() {
         nodeTypes={nodeTypes}
         fitView
         fitViewOptions={{ padding: 0.15 }}
-        minZoom={0.1}
+        minZoom={0.05}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
       >
@@ -129,24 +106,21 @@ function ERCanvasInner() {
         <Controls className="!bg-white !border !border-gray-200 !shadow-md !rounded-xl overflow-hidden" />
         <MiniMap
           nodeColor={(node) => {
-            const table = filteredTables.find(
-              (t) => t.table_name === node.id
-            );
+            const table = filteredTables.find((t) => t.table_name === node.id);
             if (!table) return "#94a3b8";
             const colors: Record<string, string> = {
-              company: "#7c3aed",
-              sales: "#2563eb",
-              inventory: "#059669",
-              warehouse: "#d97706",
+              company: "#7c3aed", sales: "#2563eb", inventory: "#059669",
+              warehouse: "#d97706", finance: "#e11d48", hr: "#db2777",
+              logistics: "#0891b2", crm: "#4f46e5",
             };
-            return colors[table.module] ?? "#94a3b8";
+            return colors[table.module ?? ""] ?? "#64748b";
           }}
           className="!bg-white !border !border-gray-200 !shadow-md !rounded-xl overflow-hidden"
         />
         <Panel position="top-right">
           <div className="flex gap-2">
             <button
-              onClick={resetLayout}
+              onClick={rebuildGraph}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 text-gray-600 transition-colors"
             >
               <RefreshCw className="w-3.5 h-3.5" />
