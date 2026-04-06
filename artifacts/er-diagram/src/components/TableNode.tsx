@@ -33,8 +33,7 @@ function TableNode({ data }: NodeProps<TableNodeData>) {
   return (
     <div
       className={`rounded-xl border-2 bg-white shadow-md transition-all duration-200 overflow-hidden cursor-pointer select-none
-        ${colors.border}
-        ${isDimmed ? "opacity-25" : "opacity-100"}
+        ${colors.border} ${isDimmed ? "opacity-25" : "opacity-100"}
         hover:shadow-xl hover:scale-[1.01]`}
       style={{ width: 280, minWidth: 280 }}
       onClick={() => setSelectedTableName(table.table_name)}
@@ -58,25 +57,18 @@ function TableNode({ data }: NodeProps<TableNodeData>) {
 
       <div className="px-3 py-2 border-b border-gray-100">
         <p className="font-bold text-gray-900 text-sm">{table.table_name}</p>
-        {table.description && (
-          <p className="text-[11px] text-gray-400 truncate">{table.description}</p>
-        )}
+        {table.description && <p className="text-[11px] text-gray-400 truncate">{table.description}</p>}
       </div>
 
       <div className="divide-y divide-gray-50">
         {table.columns.map((col) => (
           <div
             key={col.name}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs
-              ${col.pk ? "bg-yellow-50" : col.fk ? "bg-blue-50/50" : ""}`}
+            className={`flex items-center gap-2 px-3 py-1.5 text-xs ${col.pk ? "bg-yellow-50" : col.fk ? "bg-blue-50/50" : ""}`}
           >
             <div className="flex gap-1 w-8 shrink-0">
-              {col.pk && (
-                <span className="text-yellow-600 font-bold text-[10px] leading-none">PK</span>
-              )}
-              {col.fk && !col.pk && (
-                <span className="text-blue-500 font-bold text-[10px] leading-none">FK</span>
-              )}
+              {col.pk && <span className="text-yellow-600 font-bold text-[10px] leading-none">PK</span>}
+              {col.fk && !col.pk && <span className="text-blue-500 font-bold text-[10px] leading-none">FK</span>}
             </div>
             <span className={`flex-1 font-medium truncate ${col.pk ? "text-yellow-800" : col.fk ? "text-blue-700" : "text-gray-700"}`}>
               {col.name}
@@ -93,10 +85,7 @@ function TableNode({ data }: NodeProps<TableNodeData>) {
           </p>
           <div className="flex flex-wrap gap-1">
             {table.indexes!.map((idx) => (
-              <span
-                key={idx.name}
-                className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono"
-              >
+              <span key={idx.name} className="text-[10px] bg-gray-200 text-gray-600 px-1.5 py-0.5 rounded font-mono">
                 {idx.name}
               </span>
             ))}

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useRef } from "react";
 import ReactFlow, {
   Background,
   Controls,
@@ -10,7 +10,8 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { toPng, toSvg } from "html-to-image";
-import { useStore } from "../store/useStore";
+import { useStore, getFilteredTables, getActiveRelationships } from "../store/useStore";
+import { useSchema } from "../context/SchemaContext";
 import { buildNodesAndEdges } from "../utils/graphBuilder";
 import TableNode from "./TableNode";
 import { Download, RefreshCw, Database } from "lucide-react";
@@ -18,39 +19,42 @@ import { Download, RefreshCw, Database } from "lucide-react";
 const nodeTypes = { tableNode: TableNode };
 
 function ERCanvasInner() {
-  const { getFilteredTables, getActiveRelationships, highlightedTableName } = useStore();
-  const filteredTables = getFilteredTables();
-  const activeRelationships = getActiveRelationships();
+  const { schema } = useSchema();
+  const {
+    selectedTables, searchQuery, relationshipFilter,
+    showOrphans, showOnlyConnected, highlightedTableName,
+  } = useStore();
+
+  const tables = schema?.tables ?? [];
+  const relationships = schema?.relationships ?? [];
+
+  const activeRels = getActiveRelationships(relationships, selectedTables, relationshipFilter);
+  const filteredTables = getFilteredTables(tables, selectedTables, searchQuery, activeRels, showOnlyConnected, showOrphans);
 
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const flowRef = useRef<HTMLDivElement>(null);
 
-  const rebuildGraph = useCallback(() => {
-    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRelationships, highlightedTableName);
-    setNodes(n);
-    setEdges(e);
-  }, [filteredTables, activeRelationships, highlightedTableName, setNodes, setEdges]);
-
-  const tableKey = filteredTables.map((t) => t.table_name).join(",");
-  const relKey = activeRelationships.map((r) => `${r.from}-${r.to}`).join(",");
-
   const prevKey = useRef("");
   const prevHighlight = useRef<string | null>(null);
+
+  const tableKey = filteredTables.map((t) => t.table_name).join(",");
+  const relKey = activeRels.map((r) => `${r.from}-${r.to}`).join(",");
   const currentKey = `${tableKey}|${relKey}`;
 
-  if (prevKey.current !== currentKey) {
+  if (prevKey.current !== currentKey || prevHighlight.current !== highlightedTableName) {
     prevKey.current = currentKey;
     prevHighlight.current = highlightedTableName;
-    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRelationships, highlightedTableName);
-    setNodes(n);
-    setEdges(e);
-  } else if (prevHighlight.current !== highlightedTableName) {
-    prevHighlight.current = highlightedTableName;
-    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRelationships, highlightedTableName);
+    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRels, highlightedTableName);
     setNodes(n);
     setEdges(e);
   }
+
+  const rebuildGraph = useCallback(() => {
+    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRels, highlightedTableName);
+    setNodes(n);
+    setEdges(e);
+  }, [filteredTables, activeRels, highlightedTableName, setNodes, setEdges]);
 
   const exportPng = useCallback(() => {
     if (!flowRef.current) return;

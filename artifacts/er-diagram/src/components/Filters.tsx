@@ -1,4 +1,5 @@
 import { useStore, RelationshipFilter } from "../store/useStore";
+import { useSchema } from "../context/SchemaContext";
 import { Filter, GitBranch, Layers } from "lucide-react";
 
 const REL_OPTIONS: { value: RelationshipFilter; label: string }[] = [
@@ -8,20 +9,24 @@ const REL_OPTIONS: { value: RelationshipFilter; label: string }[] = [
 ];
 
 const DEPTH_OPTIONS: { value: 1 | 2; label: string }[] = [
-  { value: 1, label: "Level 1 (Direct)" },
-  { value: 2, label: "Level 2 (Extended)" },
+  { value: 1, label: "Level 1" },
+  { value: 2, label: "Level 2" },
 ];
 
 export default function Filters() {
+  const { schema } = useSchema();
   const {
     relationshipFilter, setRelationshipFilter,
     showOrphans, setShowOrphans,
     showOnlyConnected, setShowOnlyConnected,
     depthFilter, setDepthFilter,
+    selectedTables,
   } = useStore();
 
+  if (!schema) return null;
+
   return (
-    <div className="flex items-center gap-3 px-4 py-2 bg-gray-900 border-b border-gray-800 flex-wrap">
+    <div className="flex items-center gap-3 px-4 py-2 bg-gray-900 border-b border-gray-800 flex-wrap shrink-0">
       <div className="flex items-center gap-1.5 text-gray-400">
         <Filter className="w-3.5 h-3.5" />
         <span className="text-xs font-semibold uppercase tracking-widest">Filters</span>
@@ -93,6 +98,10 @@ export default function Filters() {
           />
           <span className="text-xs text-gray-400">Only connected</span>
         </label>
+      </div>
+
+      <div className="ml-auto text-[11px] text-gray-600">
+        {selectedTables.size} / {schema.tables.length} tables
       </div>
     </div>
   );

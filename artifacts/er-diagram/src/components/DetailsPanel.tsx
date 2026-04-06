@@ -1,4 +1,5 @@
 import { useStore } from "../store/useStore";
+import { useSchema } from "../context/SchemaContext";
 import { X, Key, Link, Database, Hash } from "lucide-react";
 
 const MODULE_BADGE: Record<string, string> = {
@@ -15,10 +16,13 @@ const MODULE_BADGE: Record<string, string> = {
 };
 
 export default function DetailsPanel() {
-  const { schema, selectedTableName, setSelectedTableName, getSelectedTableData } = useStore();
-  const table = getSelectedTableData();
+  const { schema } = useSchema();
+  const { selectedTableName, setSelectedTableName } = useStore();
 
-  if (!selectedTableName || !table || !schema) return null;
+  if (!selectedTableName || !schema) return null;
+
+  const table = schema.tables.find((t) => t.table_name === selectedTableName);
+  if (!table) return null;
 
   const relatedFrom = schema.relationships.filter((r) => r.from.split(".")[0] === table.table_name);
   const relatedTo = schema.relationships.filter((r) => r.to.split(".")[0] === table.table_name);
@@ -46,27 +50,18 @@ export default function DetailsPanel() {
                 {table.module}
               </span>
             )}
-            {table.description && (
-              <p className="text-xs text-gray-500 mt-1">{table.description}</p>
-            )}
+            {table.description && <p className="text-xs text-gray-500 mt-1">{table.description}</p>}
           </div>
         )}
 
         <div className="px-4 py-3 border-b border-gray-100">
           <div className="flex items-center gap-1.5 mb-2">
             <Database className="w-3.5 h-3.5 text-gray-400" />
-            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-              Columns ({table.columns.length})
-            </p>
+            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Columns ({table.columns.length})</p>
           </div>
           <div className="space-y-1">
             {table.columns.map((col) => (
-              <div
-                key={col.name}
-                className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs ${
-                  col.pk ? "bg-yellow-50 border border-yellow-100" : col.fk ? "bg-blue-50 border border-blue-100" : "bg-gray-50"
-                }`}
-              >
+              <div key={col.name} className={`flex items-center gap-2 px-2 py-1.5 rounded-lg text-xs ${col.pk ? "bg-yellow-50 border border-yellow-100" : col.fk ? "bg-blue-50 border border-blue-100" : "bg-gray-50"}`}>
                 <div className="flex items-center gap-1 w-6 shrink-0">
                   {col.pk && <Key className="w-3 h-3 text-yellow-500" />}
                   {col.fk && !col.pk && <Link className="w-3 h-3 text-blue-400" />}
@@ -84,9 +79,7 @@ export default function DetailsPanel() {
           <div className="px-4 py-3 border-b border-gray-100">
             <div className="flex items-center gap-1.5 mb-2">
               <Hash className="w-3.5 h-3.5 text-gray-400" />
-              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
-                Indexes ({table.indexes!.length})
-              </p>
+              <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Indexes ({table.indexes!.length})</p>
             </div>
             <div className="space-y-1.5">
               {table.indexes!.map((idx) => (

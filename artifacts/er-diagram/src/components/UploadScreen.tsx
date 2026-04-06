@@ -1,9 +1,139 @@
 import { useCallback, useState, useRef } from "react";
-import { useStore } from "../store/useStore";
+import { useSchema } from "../context/SchemaContext";
 import { Upload, FileJson, AlertCircle, CheckCircle2 } from "lucide-react";
 
+const SAMPLE_SCHEMA = {
+  database: "erp_sales_inventory",
+  version: "1.0",
+  tables: [
+    {
+      table_name: "tblcompanies",
+      description: "Stores company master data",
+      primary_key: "userid",
+      columns: [
+        { name: "userid", type: "int", pk: true },
+        { name: "company", type: "string" },
+        { name: "primary_domain", type: "string" },
+        { name: "email_1", type: "string" },
+        { name: "country", type: "int", fk: "country_master.id" },
+        { name: "city", type: "string" },
+        { name: "state", type: "string" },
+        { name: "zip", type: "string" },
+        { name: "address", type: "text" },
+        { name: "company_id", type: "int" },
+        { name: "client_approval_status", type: "int" },
+        { name: "created_at", type: "datetime" },
+        { name: "updated_date", type: "timestamp" },
+      ],
+      indexes: [
+        { name: "idx_primary_domain", columns: ["primary_domain"] },
+        { name: "idx_company_id", columns: ["company_id"] },
+      ],
+    },
+    {
+      table_name: "sales_master",
+      description: "Sales order header table",
+      primary_key: "id",
+      columns: [
+        { name: "id", type: "int", pk: true },
+        { name: "clientid", type: "int", fk: "tblcompanies.userid" },
+        { name: "company_id", type: "int" },
+        { name: "number", type: "int" },
+        { name: "year", type: "int" },
+        { name: "date", type: "datetime" },
+        { name: "currency", type: "int", fk: "currency_master.id" },
+        { name: "subtotal", type: "decimal" },
+        { name: "total_tax", type: "decimal" },
+        { name: "total", type: "decimal" },
+        { name: "status", type: "int" },
+        { name: "sale_agent", type: "int" },
+        { name: "warehouse_id", type: "int", fk: "tblmasterwarehouse.id" },
+        { name: "created_at", type: "datetime" },
+        { name: "updated_date", type: "timestamp" },
+      ],
+      indexes: [
+        { name: "idx_clientid", columns: ["clientid"] },
+        { name: "idx_company_date", columns: ["company_id", "date"] },
+        { name: "idx_status", columns: ["status"] },
+      ],
+    },
+    {
+      table_name: "sales_items",
+      description: "Sales order line items",
+      primary_key: "id",
+      columns: [
+        { name: "id", type: "int", pk: true },
+        { name: "salesorderid", type: "int", fk: "sales_master.id" },
+        { name: "inventory_id", type: "int", fk: "master_inventory.id" },
+        { name: "warehouse", type: "int", fk: "tblmasterwarehouse.id" },
+        { name: "description", type: "string" },
+        { name: "qty", type: "decimal" },
+        { name: "rate", type: "decimal" },
+        { name: "billing_rate", type: "decimal" },
+        { name: "ship_status", type: "string" },
+        { name: "expect_ship_date", type: "datetime" },
+        { name: "company_id", type: "int" },
+        { name: "created_at", type: "timestamp" },
+      ],
+      indexes: [
+        { name: "idx_salesorderid", columns: ["salesorderid"] },
+        { name: "idx_inventory", columns: ["inventory_id"] },
+        { name: "idx_warehouse", columns: ["warehouse"] },
+      ],
+    },
+    {
+      table_name: "tblmasterwarehouse",
+      description: "Warehouse master table",
+      primary_key: "id",
+      columns: [
+        { name: "id", type: "int", pk: true },
+        { name: "company_id", type: "int" },
+        { name: "warehouse_name", type: "string" },
+        { name: "warehouse_code", type: "string" },
+        { name: "country", type: "string" },
+        { name: "city", type: "string" },
+        { name: "state", type: "string" },
+        { name: "zipcode", type: "string" },
+        { name: "status", type: "int" },
+        { name: "created_at", type: "datetime" },
+        { name: "updated_at", type: "datetime" },
+      ],
+      indexes: [{ name: "idx_company", columns: ["company_id"] }],
+    },
+    {
+      table_name: "master_inventory",
+      description: "Inventory and stock tracking table",
+      primary_key: "id",
+      columns: [
+        { name: "id", type: "int", pk: true },
+        { name: "description", type: "string" },
+        { name: "rate", type: "decimal" },
+        { name: "selling_price", type: "decimal" },
+        { name: "warehouse", type: "int", fk: "tblmasterwarehouse.id" },
+        { name: "lotno", type: "string" },
+        { name: "mfg_date", type: "datetime" },
+        { name: "exp_date", type: "datetime" },
+        { name: "total_available_qty", type: "decimal" },
+        { name: "reserved", type: "decimal" },
+        { name: "company_id", type: "int" },
+        { name: "created_at", type: "timestamp" },
+      ],
+      indexes: [
+        { name: "idx_company_lot", columns: ["company_id", "lotno"] },
+        { name: "idx_qty", columns: ["total_available_qty"] },
+      ],
+    },
+  ],
+  relationships: [
+    { from: "sales_master.clientid", to: "tblcompanies.userid", type: "many-to-one" },
+    { from: "sales_items.salesorderid", to: "sales_master.id", type: "many-to-one" },
+    { from: "sales_items.warehouse", to: "tblmasterwarehouse.id", type: "many-to-one" },
+    { from: "sales_items.inventory_id", to: "master_inventory.id", type: "many-to-one" },
+  ],
+};
+
 export default function UploadScreen() {
-  const { loadSchema } = useStore();
+  const { loadSchema } = useSchema();
   const [dragging, setDragging] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -11,29 +141,30 @@ export default function UploadScreen() {
 
   const processFile = useCallback(
     (file: File) => {
-      if (!file.name.endsWith(".json")) {
+      if (!file.name.toLowerCase().endsWith(".json")) {
         setError("Please upload a valid .json file.");
         return;
       }
       setLoading(true);
       setError(null);
+
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
-          const raw = JSON.parse(e.target?.result as string);
+          const text = e.target?.result as string;
+          const raw = JSON.parse(text) as Record<string, unknown>;
           if (!raw.tables || !Array.isArray(raw.tables)) {
             throw new Error('JSON must have a "tables" array.');
           }
           loadSchema(raw, file.name);
         } catch (err: unknown) {
-          setError(err instanceof Error ? err.message : "Invalid JSON format.");
-        } finally {
           setLoading(false);
+          setError(err instanceof Error ? err.message : "Invalid JSON. Please check your file format.");
         }
       };
       reader.onerror = () => {
-        setError("Failed to read the file.");
         setLoading(false);
+        setError("Failed to read the file.");
       };
       reader.readAsText(file);
     },
@@ -54,142 +185,14 @@ export default function UploadScreen() {
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (file) processFile(file);
+      // reset so same file can be re-selected
+      e.target.value = "";
     },
     [processFile]
   );
 
-  const SAMPLE_SCHEMA = {
-    database: "erp_sales_inventory",
-    version: "1.0",
-    tables: [
-      {
-        table_name: "tblcompanies",
-        description: "Stores company master data",
-        primary_key: "userid",
-        columns: [
-          { name: "userid", type: "int", pk: true },
-          { name: "company", type: "string" },
-          { name: "primary_domain", type: "string" },
-          { name: "email_1", type: "string" },
-          { name: "country", type: "int", fk: "country_master.id" },
-          { name: "city", type: "string" },
-          { name: "state", type: "string" },
-          { name: "zip", type: "string" },
-          { name: "address", type: "text" },
-          { name: "company_id", type: "int" },
-          { name: "client_approval_status", type: "int" },
-          { name: "created_at", type: "datetime" },
-          { name: "updated_date", type: "timestamp" },
-        ],
-        indexes: [
-          { name: "idx_primary_domain", columns: ["primary_domain"] },
-          { name: "idx_company_id", columns: ["company_id"] },
-        ],
-      },
-      {
-        table_name: "sales_master",
-        description: "Sales order header table",
-        primary_key: "id",
-        columns: [
-          { name: "id", type: "int", pk: true },
-          { name: "clientid", type: "int", fk: "tblcompanies.userid" },
-          { name: "company_id", type: "int" },
-          { name: "number", type: "int" },
-          { name: "year", type: "int" },
-          { name: "date", type: "datetime" },
-          { name: "currency", type: "int", fk: "currency_master.id" },
-          { name: "subtotal", type: "decimal" },
-          { name: "total_tax", type: "decimal" },
-          { name: "total", type: "decimal" },
-          { name: "status", type: "int" },
-          { name: "sale_agent", type: "int" },
-          { name: "warehouse_id", type: "int", fk: "tblmasterwarehouse.id" },
-          { name: "created_at", type: "datetime" },
-          { name: "updated_date", type: "timestamp" },
-        ],
-        indexes: [
-          { name: "idx_clientid", columns: ["clientid"] },
-          { name: "idx_company_date", columns: ["company_id", "date"] },
-          { name: "idx_status", columns: ["status"] },
-        ],
-      },
-      {
-        table_name: "sales_items",
-        description: "Sales order line items",
-        primary_key: "id",
-        columns: [
-          { name: "id", type: "int", pk: true },
-          { name: "salesorderid", type: "int", fk: "sales_master.id" },
-          { name: "inventory_id", type: "int", fk: "master_inventory.id" },
-          { name: "warehouse", type: "int", fk: "tblmasterwarehouse.id" },
-          { name: "description", type: "string" },
-          { name: "qty", type: "decimal" },
-          { name: "rate", type: "decimal" },
-          { name: "billing_rate", type: "decimal" },
-          { name: "ship_status", type: "string" },
-          { name: "expect_ship_date", type: "datetime" },
-          { name: "company_id", type: "int" },
-          { name: "created_at", type: "timestamp" },
-        ],
-        indexes: [
-          { name: "idx_salesorderid", columns: ["salesorderid"] },
-          { name: "idx_inventory", columns: ["inventory_id"] },
-          { name: "idx_warehouse", columns: ["warehouse"] },
-        ],
-      },
-      {
-        table_name: "tblmasterwarehouse",
-        description: "Warehouse master table",
-        primary_key: "id",
-        columns: [
-          { name: "id", type: "int", pk: true },
-          { name: "company_id", type: "int" },
-          { name: "warehouse_name", type: "string" },
-          { name: "warehouse_code", type: "string" },
-          { name: "country", type: "string" },
-          { name: "city", type: "string" },
-          { name: "state", type: "string" },
-          { name: "zipcode", type: "string" },
-          { name: "status", type: "int" },
-          { name: "created_at", type: "datetime" },
-          { name: "updated_at", type: "datetime" },
-        ],
-        indexes: [{ name: "idx_company", columns: ["company_id"] }],
-      },
-      {
-        table_name: "master_inventory",
-        description: "Inventory and stock tracking table",
-        primary_key: "id",
-        columns: [
-          { name: "id", type: "int", pk: true },
-          { name: "description", type: "string" },
-          { name: "rate", type: "decimal" },
-          { name: "selling_price", type: "decimal" },
-          { name: "warehouse", type: "int", fk: "tblmasterwarehouse.id" },
-          { name: "lotno", type: "string" },
-          { name: "mfg_date", type: "datetime" },
-          { name: "exp_date", type: "datetime" },
-          { name: "total_available_qty", type: "decimal" },
-          { name: "reserved", type: "decimal" },
-          { name: "company_id", type: "int" },
-          { name: "created_at", type: "timestamp" },
-        ],
-        indexes: [
-          { name: "idx_company_lot", columns: ["company_id", "lotno"] },
-          { name: "idx_qty", columns: ["total_available_qty"] },
-        ],
-      },
-    ],
-    relationships: [
-      { from: "sales_master.clientid", to: "tblcompanies.userid", type: "many-to-one" },
-      { from: "sales_items.salesorderid", to: "sales_master.id", type: "many-to-one" },
-      { from: "sales_items.warehouse", to: "tblmasterwarehouse.id", type: "many-to-one" },
-      { from: "sales_items.inventory_id", to: "master_inventory.id", type: "many-to-one" },
-    ],
-  };
-
   const loadSample = () => {
-    loadSchema(SAMPLE_SCHEMA, "sample_erp_schema.json");
+    loadSchema(SAMPLE_SCHEMA as Record<string, unknown>, "sample_erp_schema.json");
   };
 
   return (
@@ -225,7 +228,7 @@ export default function UploadScreen() {
           <input
             ref={inputRef}
             type="file"
-            accept=".json"
+            accept=".json,application/json"
             className="hidden"
             onChange={handleFileChange}
           />
@@ -248,7 +251,7 @@ export default function UploadScreen() {
               </p>
               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700">
                 <FileJson className="w-3.5 h-3.5 text-gray-500" />
-                <span className="text-xs text-gray-500">Supports .json files with tables + relationships</span>
+                <span className="text-xs text-gray-500">Supports .json with tables + relationships arrays</span>
               </div>
             </>
           )}
@@ -262,7 +265,7 @@ export default function UploadScreen() {
         )}
 
         <div className="mt-6 text-center">
-          <p className="text-gray-600 text-xs mb-2">Don't have a file? Try the sample schema</p>
+          <p className="text-gray-600 text-xs mb-2">Don't have a file ready? Try the built-in sample</p>
           <button
             onClick={loadSample}
             className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 text-sm hover:bg-gray-700 hover:text-white transition-colors"
@@ -274,9 +277,9 @@ export default function UploadScreen() {
 
         <div className="mt-8 grid grid-cols-3 gap-4">
           {[
-            { icon: "🗂️", title: "JSON Schema", desc: "Must include tables array with columns" },
-            { icon: "🔗", title: "Relationships", desc: "Include from/to field with FK references" },
-            { icon: "📦", title: "Modules", desc: "Auto-detected from table names" },
+            { icon: "🗂️", title: "Tables", desc: "Array of table objects with columns list" },
+            { icon: "🔗", title: "Relationships", desc: "from/to fields pointing to table.column" },
+            { icon: "📦", title: "Modules", desc: "Auto-detected from table name patterns" },
           ].map((item) => (
             <div key={item.title} className="bg-gray-900 border border-gray-800 rounded-xl p-4 text-center">
               <div className="text-2xl mb-2">{item.icon}</div>

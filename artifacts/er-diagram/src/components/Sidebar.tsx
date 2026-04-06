@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSchema } from "../context/SchemaContext";
 import { useStore } from "../store/useStore";
 import { Search, ChevronDown, ChevronRight } from "lucide-react";
 
@@ -20,17 +21,15 @@ function getModuleColor(mod: string) {
 }
 
 export default function Sidebar() {
-  const {
-    schema,
-    selectedTables,
-    toggleTable,
-    selectAll,
-    deselectAll,
-    searchQuery,
-    setSearchQuery,
-  } = useStore();
-
+  const { schema } = useSchema();
+  const { selectedTables, toggleTable, selectAll, deselectAll, searchQuery, setSearchQuery, initTables } = useStore();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (schema) {
+      initTables(schema.tables.map((t) => t.table_name));
+    }
+  }, [schema]);
 
   if (!schema) return null;
 
@@ -49,11 +48,8 @@ export default function Sidebar() {
     const allGroupSelected = tables.every((t) => selectedTables.has(t.table_name));
     const next = new Set(selectedTables);
     tables.forEach((t) => {
-      if (allGroupSelected) {
-        next.delete(t.table_name);
-      } else {
-        next.add(t.table_name);
-      }
+      if (allGroupSelected) next.delete(t.table_name);
+      else next.add(t.table_name);
     });
     useStore.setState({ selectedTables: next });
   };
@@ -100,7 +96,7 @@ export default function Sidebar() {
 
         <div className="flex gap-2">
           <button
-            onClick={selectAll}
+            onClick={() => selectAll(schema.tables.map((t) => t.table_name))}
             className="flex-1 text-xs py-1 rounded bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors border border-gray-700"
           >
             Select All
@@ -123,10 +119,7 @@ export default function Sidebar() {
           return (
             <div key={mod} className="mb-1">
               <div className="flex items-center px-3 py-2 hover:bg-gray-800/50">
-                <button
-                  onClick={() => toggleCollapse(mod)}
-                  className="text-gray-500 hover:text-gray-300 mr-1"
-                >
+                <button onClick={() => toggleCollapse(mod)} className="text-gray-500 hover:text-gray-300 mr-1">
                   {isCollapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                 </button>
                 <input
