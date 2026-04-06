@@ -12,8 +12,8 @@ export function buildNodesAndEdges(
   highlightedTable: string | null
 ): { nodes: Node[]; edges: Edge[] } {
   const nodes: Node[] = tables.map((table) => {
-    const isHighlighted = highlightedTable === table.table_name;
-    const isConnected = highlightedTable
+    const isHighlighted = highlightedTable !== null && highlightedTable === table.table_name;
+    const isConnected = highlightedTable !== null
       ? relationships.some(
           (r) =>
             (r.from.split(".")[0] === highlightedTable && r.to.split(".")[0] === table.table_name) ||
@@ -48,7 +48,7 @@ export function buildNodesAndEdges(
         (sourceTable === highlightedTable || targetTable === highlightedTable);
 
       return {
-        id: `edge-${i}`,
+        id: `edge-${i}-${sourceTable}-${targetTable}`,
         source: sourceTable,
         target: targetTable,
         type: "smoothstep",
@@ -57,13 +57,13 @@ export function buildNodesAndEdges(
         labelStyle: { fontSize: 10, fill: "#64748b" },
         labelBgStyle: { fill: "#f8fafc", fillOpacity: 0.85 },
         style: {
-          stroke: isEdgeHighlighted ? "#3b82f6" : highlightedTable ? "#cbd5e1" : "#3b82f6",
-          strokeWidth: isEdgeHighlighted ? 2 : 1.5,
-          opacity: highlightedTable && !isEdgeHighlighted ? 0.2 : 1,
+          stroke: isEdgeHighlighted ? "#3b82f6" : highlightedTable ? "#94a3b8" : "#3b82f6",
+          strokeWidth: isEdgeHighlighted ? 2.5 : 1.5,
+          opacity: highlightedTable && !isEdgeHighlighted ? 0.15 : 1,
         },
         markerEnd: {
           type: "arrowclosed",
-          color: isEdgeHighlighted ? "#3b82f6" : highlightedTable ? "#cbd5e1" : "#3b82f6",
+          color: isEdgeHighlighted ? "#3b82f6" : highlightedTable ? "#94a3b8" : "#3b82f6",
         },
       };
     });
@@ -79,22 +79,17 @@ function applyDagreLayout(nodes: Node[], edges: Edge[], tables: Table[]): Node[]
 
   nodes.forEach((node) => {
     const table = tables.find((t) => t.table_name === node.id);
-    const height = table
-      ? NODE_HEIGHT_BASE + table.columns.length * ROW_HEIGHT
-      : NODE_HEIGHT_BASE;
+    const height = table ? NODE_HEIGHT_BASE + table.columns.length * ROW_HEIGHT : NODE_HEIGHT_BASE;
     g.setNode(node.id, { width: NODE_WIDTH, height });
   });
 
   edges.forEach((edge) => g.setEdge(edge.source, edge.target));
-
   dagre.layout(g);
 
   return nodes.map((node) => {
     const nodeWithPos = g.node(node.id);
     const table = tables.find((t) => t.table_name === node.id);
-    const height = table
-      ? NODE_HEIGHT_BASE + table.columns.length * ROW_HEIGHT
-      : NODE_HEIGHT_BASE;
+    const height = table ? NODE_HEIGHT_BASE + table.columns.length * ROW_HEIGHT : NODE_HEIGHT_BASE;
     return {
       ...node,
       position: {

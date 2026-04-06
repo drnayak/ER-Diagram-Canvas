@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useSchema } from "./context/SchemaContext";
 import Sidebar from "./components/Sidebar";
 import Filters from "./components/Filters";
@@ -15,6 +16,7 @@ const MODULE_COLORS: Record<string, string> = {
 
 export default function App() {
   const { schema, fileName, clearSchema } = useSchema();
+  const [sidebarOpen, setSidebarOpen] = useState(true);
 
   const modules = schema
     ? [...new Set(schema.tables.map((t) => t.module ?? "other"))]
@@ -81,13 +83,34 @@ export default function App() {
         )}
       </header>
 
-      {/* Body — conditional on schema being loaded */}
+      {/* Body */}
       {schema ? (
         <>
           <Filters />
-          <div className="flex flex-1 overflow-hidden">
-            <Sidebar />
-            <ERCanvas />
+          <div className="flex flex-1 overflow-hidden relative">
+            {/* Sidebar with smooth collapse */}
+            <div
+              className={`transition-all duration-300 ease-in-out overflow-hidden shrink-0 ${
+                sidebarOpen ? "w-64" : "w-0"
+              }`}
+            >
+              <Sidebar sidebarOpen={sidebarOpen} onToggle={() => setSidebarOpen(false)} />
+            </div>
+
+            {/* Collapsed sidebar peek tab */}
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                title="Show sidebar"
+                className="absolute left-0 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-5 h-14 bg-gray-800 border border-gray-700 border-l-0 rounded-r-lg text-gray-400 hover:text-white hover:bg-gray-700 transition-colors shadow-lg"
+              >
+                <svg viewBox="0 0 24 24" className="w-3.5 h-3.5 fill-none stroke-current stroke-2">
+                  <path d="M9 18l6-6-6-6" />
+                </svg>
+              </button>
+            )}
+
+            <ERCanvas sidebarOpen={sidebarOpen} />
             <DetailsPanel />
           </div>
         </>

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useSchema } from "../context/SchemaContext";
 import { useStore } from "../store/useStore";
-import { Search, ChevronDown, ChevronRight } from "lucide-react";
+import { Search, ChevronDown, ChevronRight, PanelLeftClose } from "lucide-react";
 
 const MODULE_META: Record<string, { color: string }> = {
   company:   { color: "bg-violet-500" },
@@ -20,7 +20,12 @@ function getModuleColor(mod: string) {
   return MODULE_META[mod]?.color ?? "bg-slate-500";
 }
 
-export default function Sidebar() {
+interface SidebarProps {
+  sidebarOpen: boolean;
+  onToggle: () => void;
+}
+
+export default function Sidebar({ sidebarOpen, onToggle }: SidebarProps) {
   const { schema } = useSchema();
   const { selectedTables, toggleTable, selectAll, deselectAll, searchQuery, setSearchQuery, initTables } = useStore();
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
@@ -81,6 +86,14 @@ export default function Sidebar() {
           <span className="ml-auto text-[11px] text-gray-500 bg-gray-800 px-1.5 py-0.5 rounded">
             {selectedTables.size}/{schema.tables.length}
           </span>
+          {/* Hide sidebar toggle */}
+          <button
+            onClick={onToggle}
+            title="Hide sidebar"
+            className="ml-1 p-1 rounded-lg text-gray-500 hover:text-gray-200 hover:bg-gray-800 transition-colors"
+          >
+            <PanelLeftClose className="w-3.5 h-3.5" />
+          </button>
         </div>
 
         <div className="relative mb-3">

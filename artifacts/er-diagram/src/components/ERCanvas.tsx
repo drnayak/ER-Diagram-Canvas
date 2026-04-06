@@ -1,24 +1,78 @@
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useEffect } from "react";
 import ReactFlow, {
   Background,
   Controls,
-  MiniMap,
   useNodesState,
   useEdgesState,
   ReactFlowProvider,
   Panel,
+  Node,
+  Edge,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { toPng, toSvg } from "html-to-image";
 import { useStore, getFilteredTables, getActiveRelationships } from "../store/useStore";
 import { useSchema } from "../context/SchemaContext";
 import { buildNodesAndEdges } from "../utils/graphBuilder";
+import { Relationship } from "../types";
 import TableNode from "./TableNode";
 import { Download, RefreshCw, Database } from "lucide-react";
 
 const nodeTypes = { tableNode: TableNode };
 
-function ERCanvasInner() {
+function applyHighlightToNodes(
+  nodes: Node[],
+  edges: Edge[],
+  highlightedTableName: string | null,
+  activeRels: Relationship[]
+): { nodes: Node[]; edges: Edge[] } {
+  const updatedNodes = nodes.map((node) => {
+    const isHighlighted = highlightedTableName === node.id;
+    const isConnected = highlightedTableName
+      ? activeRels.some(
+          (r) =>
+            (r.from.split(".")[0] === highlightedTableName && r.to.split(".")[0] === node.id) ||
+            (r.to.split(".")[0] === highlightedTableName && r.from.split(".")[0] === node.id)
+        )
+      : false;
+    return {
+      ...node,
+      data: {
+        ...node.data,
+        isHighlighted,
+        isConnected,
+        isDimmed: highlightedTableName !== null && !isHighlighted && !isConnected,
+      },
+    };
+  });
+
+  const updatedEdges = edges.map((edge) => {
+    const isEdgeHighlighted =
+      highlightedTableName !== null &&
+      (edge.source === highlightedTableName || edge.target === highlightedTableName);
+    return {
+      ...edge,
+      animated: isEdgeHighlighted,
+      style: {
+        stroke: isEdgeHighlighted ? "#3b82f6" : highlightedTableName ? "#94a3b8" : "#3b82f6",
+        strokeWidth: isEdgeHighlighted ? 2.5 : 1.5,
+        opacity: highlightedTableName && !isEdgeHighlighted ? 0.15 : 1,
+      },
+      markerEnd: {
+        type: "arrowclosed",
+        color: isEdgeHighlighted ? "#3b82f6" : highlightedTableName ? "#94a3b8" : "#3b82f6",
+      },
+    };
+  });
+
+  return { nodes: updatedNodes, edges: updatedEdges };
+}
+
+interface ERCanvasInnerProps {
+  sidebarOpen: boolean;
+}
+
+function ERCanvasInner({ sidebarOpen }: ERCanvasInnerProps) {
   const { schema } = useSchema();
   const {
     selectedTables, searchQuery, relationshipFilter,
@@ -35,26 +89,48 @@ function ERCanvasInner() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const flowRef = useRef<HTMLDivElement>(null);
 
-  const prevKey = useRef("");
-  const prevHighlight = useRef<string | null>(null);
+  // Stable refs so effect callbacks always see current values
+  const activeRelsRef = useRef(activeRels);
+  activeRelsRef.current = activeRels;
 
-  const tableKey = filteredTables.map((t) => t.table_name).join(",");
-  const relKey = activeRels.map((r) => `${r.from}-${r.to}`).join(",");
-  const currentKey = `${tableKey}|${relKey}`;
+  // Keys to detect when layout needs a full rebuild (table set or relationship set changed)
+  const tableKey = filteredTables.map((t) => t.table_name).sort().join(",");
+  const relKey = activeRels.map((r) => `${r.from}>${r.to}`).sort().join(",");
+  const layoutKey = `${tableKey}||${relKey}`;
+  const prevLayoutKey = useRef("");
 
-  if (prevKey.current !== currentKey || prevHighlight.current !== highlightedTableName) {
-    prevKey.current = currentKey;
-    prevHighlight.current = highlightedTableName;
-    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRels, highlightedTableName);
-    setNodes(n);
-    setEdges(e);
-  }
+  // Effect 1: Full layout rebuild ONLY when the set of tables/rels changes.
+  // This preserves positions across all other state changes (hover, filter toggles that don't add/remove tables).
+  useEffect(() => {
+    if (prevLayoutKey.current === layoutKey) return;
+    prevLayoutKey.current = layoutKey;
+
+    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRels, null);
+    const { nodes: hn, edges: he } = applyHighlightToNodes(n, e, highlightedTableName, activeRelsRef.current);
+    setNodes(hn);
+    setEdges(he);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutKey]);
+
+  // Effect 2: Update highlight/dim WITHOUT touching positions (preserves drag).
+  useEffect(() => {
+    setNodes((prev) => {
+      const updated = applyHighlightToNodes(prev, [], highlightedTableName, activeRelsRef.current).nodes;
+      return updated;
+    });
+    setEdges((prev) => {
+      const updated = applyHighlightToNodes([], prev, highlightedTableName, activeRelsRef.current).edges;
+      return updated;
+    });
+  }, [highlightedTableName, setNodes, setEdges]);
 
   const rebuildGraph = useCallback(() => {
-    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRels, highlightedTableName);
-    setNodes(n);
-    setEdges(e);
-  }, [filteredTables, activeRels, highlightedTableName, setNodes, setEdges]);
+    prevLayoutKey.current = ""; // force reset
+    const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRelsRef.current, null);
+    const { nodes: hn, edges: he } = applyHighlightToNodes(n, e, highlightedTableName, activeRelsRef.current);
+    setNodes(hn);
+    setEdges(he);
+  }, [filteredTables, highlightedTableName, setNodes, setEdges]);
 
   const exportPng = useCallback(() => {
     if (!flowRef.current) return;
@@ -105,26 +181,16 @@ function ERCanvasInner() {
         minZoom={0.05}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
+        nodesDraggable
+        elementsSelectable
       >
         <Background color="#e2e8f0" gap={24} size={1.5} />
         <Controls className="!bg-white !border !border-gray-200 !shadow-md !rounded-xl overflow-hidden" />
-        <MiniMap
-          nodeColor={(node) => {
-            const table = filteredTables.find((t) => t.table_name === node.id);
-            if (!table) return "#94a3b8";
-            const colors: Record<string, string> = {
-              company: "#7c3aed", sales: "#2563eb", inventory: "#059669",
-              warehouse: "#d97706", finance: "#e11d48", hr: "#db2777",
-              logistics: "#0891b2", crm: "#4f46e5",
-            };
-            return colors[table.module ?? ""] ?? "#64748b";
-          }}
-          className="!bg-white !border !border-gray-200 !shadow-md !rounded-xl overflow-hidden"
-        />
         <Panel position="top-right">
           <div className="flex gap-2">
             <button
               onClick={rebuildGraph}
+              title="Reset to auto-layout"
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs bg-white border border-gray-200 rounded-lg shadow-sm hover:bg-gray-50 text-gray-600 transition-colors"
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -151,10 +217,10 @@ function ERCanvasInner() {
   );
 }
 
-export default function ERCanvas() {
+export default function ERCanvas({ sidebarOpen }: { sidebarOpen: boolean }) {
   return (
     <ReactFlowProvider>
-      <ERCanvasInner />
+      <ERCanvasInner sidebarOpen={sidebarOpen} />
     </ReactFlowProvider>
   );
 }
