@@ -11,6 +11,7 @@ interface StoreState {
   showOrphans: boolean;
   showOnlyConnected: boolean;
   selectedTableName: string | null;
+  selectedRelationship: Relationship | null;
   depthFilter: DepthFilter;
   highlightedTableName: string | null;
 
@@ -24,6 +25,7 @@ interface StoreState {
   setShowOrphans: (show: boolean) => void;
   setShowOnlyConnected: (show: boolean) => void;
   setSelectedTableName: (name: string | null) => void;
+  setSelectedRelationship: (rel: Relationship | null) => void;
   setDepthFilter: (depth: DepthFilter) => void;
   setHighlightedTableName: (name: string | null) => void;
   reset: () => void;
@@ -36,10 +38,11 @@ export const useStore = create<StoreState>((set, get) => ({
   showOrphans: true,
   showOnlyConnected: false,
   selectedTableName: null,
+  selectedRelationship: null,
   depthFilter: 1,
   highlightedTableName: null,
 
-  initTables: (tableNames) => set({ selectedTables: new Set(tableNames), selectedTableName: null }),
+  initTables: (tableNames) => set({ selectedTables: new Set(tableNames), selectedTableName: null, selectedRelationship: null }),
 
   setSelectedTables: (tables) => set({ selectedTables: tables }),
 
@@ -59,7 +62,8 @@ export const useStore = create<StoreState>((set, get) => ({
   setRelationshipFilter: (filter) => set({ relationshipFilter: filter }),
   setShowOrphans: (show) => set({ showOrphans: show }),
   setShowOnlyConnected: (show) => set({ showOnlyConnected: show }),
-  setSelectedTableName: (name) => set({ selectedTableName: name }),
+  setSelectedTableName: (name) => set({ selectedTableName: name, selectedRelationship: null }),
+  setSelectedRelationship: (rel) => set({ selectedRelationship: rel, selectedTableName: null }),
   setDepthFilter: (depth) => set({ depthFilter: depth }),
   setHighlightedTableName: (name) => set({ highlightedTableName: name }),
 
@@ -71,12 +75,13 @@ export const useStore = create<StoreState>((set, get) => ({
       showOrphans: true,
       showOnlyConnected: false,
       selectedTableName: null,
+      selectedRelationship: null,
       depthFilter: 1,
       highlightedTableName: null,
     }),
 }));
 
-// Pure helper functions — take schema data as args so components don't need the store for filtering
+// Pure helper functions
 export function getFilteredTables(
   tables: Table[],
   selectedTables: Set<string>,
@@ -93,14 +98,12 @@ export function getFilteredTables(
 
   return tables.filter((table) => {
     if (!selectedTables.has(table.table_name)) return false;
-
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       const tableMatch = table.table_name.toLowerCase().includes(q);
       const colMatch = table.columns.some((c) => c.name.toLowerCase().includes(q));
       if (!tableMatch && !colMatch) return false;
     }
-
     const isConnected = connectedTables.has(table.table_name);
     if (showOnlyConnected && !isConnected) return false;
     if (!showOrphans && !isConnected) return false;

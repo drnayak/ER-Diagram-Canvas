@@ -8,6 +8,7 @@ interface TableNodeData {
   isHighlighted: boolean;
   isConnected: boolean;
   isDimmed: boolean;
+  relHighlightedCols: Set<string>;
 }
 
 const MODULE_COLORS: Record<string, { header: string; border: string }> = {
@@ -26,29 +27,40 @@ const MODULE_COLORS: Record<string, { header: string; border: string }> = {
 const DEFAULT_COLOR = { header: "bg-slate-600", border: "border-slate-300" };
 
 function TableNode({ data }: NodeProps<TableNodeData>) {
-  const { table, isDimmed } = data;
-  const { setSelectedTableName, setHighlightedTableName } = useStore();
+  const { table, isDimmed, relHighlightedCols } = data;
+  const { setSelectedTableName, setHighlightedTableName, setSelectedRelationship } = useStore();
   const colors = MODULE_COLORS[table.module ?? ""] ?? DEFAULT_COLOR;
+
+  const hasRelHighlight = relHighlightedCols && relHighlightedCols.size > 0;
 
   return (
     <div
       className={`rounded-xl border-2 bg-white shadow-md transition-all duration-200 overflow-hidden cursor-pointer select-none
-        ${colors.border} ${isDimmed ? "opacity-25" : "opacity-100"}
+        ${hasRelHighlight ? "border-orange-400 shadow-orange-200 shadow-lg" : colors.border}
+        ${isDimmed ? "opacity-20" : "opacity-100"}
         hover:shadow-xl hover:scale-[1.01]`}
       style={{ width: 280, minWidth: 280 }}
-      onClick={() => setSelectedTableName(table.table_name)}
+      onClick={() => {
+        setSelectedTableName(table.table_name);
+        setSelectedRelationship(null);
+      }}
       onMouseEnter={() => setHighlightedTableName(table.table_name)}
       onMouseLeave={() => setHighlightedTableName(null)}
     >
       <Handle type="target" position={Position.Left} className="!opacity-0" />
       <Handle type="source" position={Position.Right} className="!opacity-0" />
 
-      <div className={`${colors.header} px-3 py-2.5 flex items-center gap-2`}>
+      <div className={`${hasRelHighlight ? "bg-orange-500" : colors.header} px-3 py-2.5 flex items-center gap-2`}>
         <span className="font-mono text-xs text-white/70 font-semibold uppercase tracking-widest">
           {table.module ?? "table"}
         </span>
         <div className="flex-1" />
-        {table.primary_key && (
+        {hasRelHighlight && (
+          <span className="bg-white/25 text-white text-[10px] px-2 py-0.5 rounded-full font-semibold animate-pulse">
+            linked
+          </span>
+        )}
+        {!hasRelHighlight && table.primary_key && (
           <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.5 rounded font-mono">
             PK: {table.primary_key}
           </span>
@@ -61,21 +73,51 @@ function TableNode({ data }: NodeProps<TableNodeData>) {
       </div>
 
       <div className="divide-y divide-gray-50">
-        {table.columns.map((col) => (
-          <div
-            key={col.name}
-            className={`flex items-center gap-2 px-3 py-1.5 text-xs ${col.pk ? "bg-yellow-50" : col.fk ? "bg-blue-50/50" : ""}`}
-          >
-            <div className="flex gap-1 w-8 shrink-0">
-              {col.pk && <span className="text-yellow-600 font-bold text-[10px] leading-none">PK</span>}
-              {col.fk && !col.pk && <span className="text-blue-500 font-bold text-[10px] leading-none">FK</span>}
+        {table.columns.map((col) => {
+          const isRelCol = hasRelHighlight && relHighlightedCols.has(col.name);
+          return (
+            <div
+              key={col.name}
+              className={`flex items-center gap-2 px-3 py-1.5 text-xs transition-colors
+                ${isRelCol
+                  ? "bg-orange-50 border-l-2 border-l-orange-400"
+                  : col.pk
+                  ? "bg-yellow-50"
+                  : col.fk
+                  ? "bg-blue-50/50"
+                  : ""
+                }`}
+            >
+              <div className="flex gap-1 w-8 shrink-0">
+                {isRelCol && (
+                  <span className="text-orange-500 font-bold text-[10px] leading-none">REF</span>
+                )}
+                {!isRelCol && col.pk && (
+                  <span className="text-yellow-600 font-bold text-[10px] leading-none">PK</span>
+                )}
+                {!isRelCol && col.fk && !col.pk && (
+                  <span className="text-blue-500 font-bold text-[10px] leading-none">FK</span>
+                )}
+              </div>
+              <span
+                className={`flex-1 font-medium truncate
+                  ${isRelCol
+                    ? "text-orange-700 font-bold"
+                    : col.pk
+                    ? "text-yellow-800"
+                    : col.fk
+                    ? "text-blue-700"
+                    : "text-gray-700"
+                  }`}
+              >
+                {col.name}
+              </span>
+              <span className={`font-mono text-[10px] shrink-0 ${isRelCol ? "text-orange-500" : "text-gray-400"}`}>
+                {col.type}
+              </span>
             </div>
-            <span className={`flex-1 font-medium truncate ${col.pk ? "text-yellow-800" : col.fk ? "text-blue-700" : "text-gray-700"}`}>
-              {col.name}
-            </span>
-            <span className="text-gray-400 font-mono text-[10px] shrink-0">{col.type}</span>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {(table.indexes?.length ?? 0) > 0 && (

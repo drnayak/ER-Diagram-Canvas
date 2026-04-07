@@ -20,12 +20,19 @@ import { Download, RefreshCw, Database } from "lucide-react";
 
 const nodeTypes = { tableNode: TableNode };
 
-function applyHighlightToNodes(
+// Compute all visual state (hover highlight + relationship selection) without touching positions
+function applyVisualState(
   nodes: Node[],
   edges: Edge[],
   highlightedTableName: string | null,
+  selectedRelationship: Relationship | null,
   activeRels: Relationship[]
 ): { nodes: Node[]; edges: Edge[] } {
+  const selFromTable = selectedRelationship?.from.split(".")[0] ?? null;
+  const selToTable = selectedRelationship?.to.split(".")[0] ?? null;
+  const selFromCol = selectedRelationship?.from.split(".")[1] ?? null;
+  const selToCol = selectedRelationship?.to.split(".")[1] ?? null;
+
   const updatedNodes = nodes.map((node) => {
     const isHighlighted = highlightedTableName === node.id;
     const isConnected = highlightedTableName
@@ -35,6 +42,14 @@ function applyHighlightToNodes(
             (r.to.split(".")[0] === highlightedTableName && r.from.split(".")[0] === node.id)
         )
       : false;
+
+    // Columns referenced by the selected relationship in this table
+    const relHighlightedCols = new Set<string>();
+    if (selectedRelationship) {
+      if (node.id === selFromTable && selFromCol) relHighlightedCols.add(selFromCol);
+      if (node.id === selToTable && selToCol) relHighlightedCols.add(selToCol);
+    }
+
     return {
       ...node,
       data: {
@@ -42,41 +57,47 @@ function applyHighlightToNodes(
         isHighlighted,
         isConnected,
         isDimmed: highlightedTableName !== null && !isHighlighted && !isConnected,
+        relHighlightedCols,
       },
     };
   });
 
   const updatedEdges = edges.map((edge) => {
-    const isEdgeHighlighted =
+    const isHoverHighlighted =
       highlightedTableName !== null &&
       (edge.source === highlightedTableName || edge.target === highlightedTableName);
+    const isSelected =
+      selectedRelationship !== null &&
+      edge.source === selFromTable &&
+      edge.target === selToTable;
+
+    let stroke = "#3b82f6";
+    if (isSelected) stroke = "#f97316";
+    else if (isHoverHighlighted) stroke = "#3b82f6";
+    else if (highlightedTableName) stroke = "#94a3b8";
+
     return {
       ...edge,
-      animated: isEdgeHighlighted,
+      animated: isSelected || isHoverHighlighted,
       style: {
-        stroke: isEdgeHighlighted ? "#3b82f6" : highlightedTableName ? "#94a3b8" : "#3b82f6",
-        strokeWidth: isEdgeHighlighted ? 2.5 : 1.5,
-        opacity: highlightedTableName && !isEdgeHighlighted ? 0.15 : 1,
+        stroke,
+        strokeWidth: isSelected ? 3 : isHoverHighlighted ? 2.5 : 1.5,
+        opacity: (highlightedTableName && !isHoverHighlighted && !isSelected) ? 0.12 : 1,
       },
-      markerEnd: {
-        type: "arrowclosed",
-        color: isEdgeHighlighted ? "#3b82f6" : highlightedTableName ? "#94a3b8" : "#3b82f6",
-      },
+      markerEnd: { type: "arrowclosed", color: stroke },
     };
   });
 
   return { nodes: updatedNodes, edges: updatedEdges };
 }
 
-interface ERCanvasInnerProps {
-  sidebarOpen: boolean;
-}
-
-function ERCanvasInner({ sidebarOpen }: ERCanvasInnerProps) {
+function ERCanvasInner({ sidebarOpen }: { sidebarOpen: boolean }) {
   const { schema } = useSchema();
   const {
     selectedTables, searchQuery, relationshipFilter,
-    showOrphans, showOnlyConnected, highlightedTableName,
+    showOrphans, showOnlyConnected,
+    highlightedTableName, selectedRelationship,
+    setSelectedRelationship, setSelectedTableName,
   } = useStore();
 
   const tables = schema?.tables ?? [];
@@ -89,48 +110,58 @@ function ERCanvasInner({ sidebarOpen }: ERCanvasInnerProps) {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const flowRef = useRef<HTMLDivElement>(null);
 
-  // Stable refs so effect callbacks always see current values
   const activeRelsRef = useRef(activeRels);
   activeRelsRef.current = activeRels;
+  const highlightedRef = useRef(highlightedTableName);
+  highlightedRef.current = highlightedTableName;
+  const selectedRelRef = useRef(selectedRelationship);
+  selectedRelRef.current = selectedRelationship;
 
-  // Keys to detect when layout needs a full rebuild (table set or relationship set changed)
   const tableKey = filteredTables.map((t) => t.table_name).sort().join(",");
   const relKey = activeRels.map((r) => `${r.from}>${r.to}`).sort().join(",");
   const layoutKey = `${tableKey}||${relKey}`;
   const prevLayoutKey = useRef("");
 
-  // Effect 1: Full layout rebuild ONLY when the set of tables/rels changes.
-  // This preserves positions across all other state changes (hover, filter toggles that don't add/remove tables).
+  // Effect 1: Full layout rebuild only when table set / rel set changes
   useEffect(() => {
     if (prevLayoutKey.current === layoutKey) return;
     prevLayoutKey.current = layoutKey;
-
     const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRels, null);
-    const { nodes: hn, edges: he } = applyHighlightToNodes(n, e, highlightedTableName, activeRelsRef.current);
-    setNodes(hn);
-    setEdges(he);
+    const { nodes: vn, edges: ve } = applyVisualState(n, e, highlightedRef.current, selectedRelRef.current, activeRelsRef.current);
+    setNodes(vn);
+    setEdges(ve);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [layoutKey]);
 
-  // Effect 2: Update highlight/dim WITHOUT touching positions (preserves drag).
+  // Effect 2: Visual-only update when hover or selected relationship changes (preserves positions)
   useEffect(() => {
-    setNodes((prev) => {
-      const updated = applyHighlightToNodes(prev, [], highlightedTableName, activeRelsRef.current).nodes;
-      return updated;
-    });
-    setEdges((prev) => {
-      const updated = applyHighlightToNodes([], prev, highlightedTableName, activeRelsRef.current).edges;
-      return updated;
-    });
-  }, [highlightedTableName, setNodes, setEdges]);
+    setNodes((prev) => applyVisualState(prev, [], highlightedTableName, selectedRelationship, activeRelsRef.current).nodes);
+    setEdges((prev) => applyVisualState([], prev, highlightedTableName, selectedRelationship, activeRelsRef.current).edges);
+  }, [highlightedTableName, selectedRelationship, setNodes, setEdges]);
+
+  const handleEdgeClick = useCallback(
+    (_: React.MouseEvent, edge: Edge) => {
+      // Find the full relationship object from active relationships
+      const rel = activeRelsRef.current.find(
+        (r) => r.from.split(".")[0] === edge.source && r.to.split(".")[0] === edge.target
+      );
+      if (rel) setSelectedRelationship(rel);
+    },
+    [setSelectedRelationship]
+  );
+
+  const handlePaneClick = useCallback(() => {
+    setSelectedRelationship(null);
+    setSelectedTableName(null);
+  }, [setSelectedRelationship, setSelectedTableName]);
 
   const rebuildGraph = useCallback(() => {
-    prevLayoutKey.current = ""; // force reset
+    prevLayoutKey.current = "";
     const { nodes: n, edges: e } = buildNodesAndEdges(filteredTables, activeRelsRef.current, null);
-    const { nodes: hn, edges: he } = applyHighlightToNodes(n, e, highlightedTableName, activeRelsRef.current);
-    setNodes(hn);
-    setEdges(he);
-  }, [filteredTables, highlightedTableName, setNodes, setEdges]);
+    const { nodes: vn, edges: ve } = applyVisualState(n, e, highlightedRef.current, selectedRelRef.current, activeRelsRef.current);
+    setNodes(vn);
+    setEdges(ve);
+  }, [filteredTables, setNodes, setEdges]);
 
   const exportPng = useCallback(() => {
     if (!flowRef.current) return;
@@ -176,13 +207,15 @@ function ERCanvasInner({ sidebarOpen }: ERCanvasInnerProps) {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         nodeTypes={nodeTypes}
+        onEdgeClick={handleEdgeClick}
+        onPaneClick={handlePaneClick}
         fitView
         fitViewOptions={{ padding: 0.15 }}
         minZoom={0.05}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
         nodesDraggable
-        elementsSelectable
+        elementsSelectable={false}
       >
         <Background color="#e2e8f0" gap={24} size={1.5} />
         <Controls className="!bg-white !border !border-gray-200 !shadow-md !rounded-xl overflow-hidden" />
